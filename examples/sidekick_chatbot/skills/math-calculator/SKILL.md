@@ -2,12 +2,22 @@
 name: math-calculator
 description: Perform calculations, data analysis, and numerical problem-solving. Use when the user asks for math, percentages, statistics, unit conversions, or any computation.
 tools:
-  - code_interpreter__run_python_code
+  - run_python_code
 ---
 
 # Math & Computation
 
 Perform calculations, data analysis, and numerical problem-solving using the code interpreter.
+
+## CRITICAL: Always Use Tools
+
+**NEVER rely on your own mental math abilities.** You MUST use the `run_python_code` tool for ALL calculations, no matter how simple they seem. LLMs are notoriously bad at arithmetic - even basic math like `47 * 83` can produce wrong answers when done "in your head."
+
+- Simple addition? **Use the tool.**
+- Basic percentage? **Use the tool.**
+- Obvious multiplication? **Use the tool.**
+
+There are NO exceptions. Execute code first, then respond with the verified result.
 
 ## Approach
 

@@ -2,10 +2,11 @@
 name: weather-qa
 description: Answer questions about current weather conditions and forecasts for any location. Use when the user asks about weather, temperature, rain, snow, or forecasts.
 tools:
-  - weather__get_forecast
-  - weather__get_current_conditions
-  - weather__get_alerts
-  - weather__search_location
+  - get_forecast
+  - get_current_conditions
+  - get_alerts
+  - search_location
+  - current_time
 ---
 
 # Weather Q&A
@@ -59,3 +60,7 @@ For forecasts:
 - Default to Fahrenheit for US locations
 - Default to Celsius for international locations
 - Include both if the user's preference is unclear
+
+## Local Time
+
+Use `current_time` to show the local time at the queried location. This helps users understand the context (e.g., "It's currently 3am in Tokyo, and the temperature is...").

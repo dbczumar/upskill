@@ -1,0 +1,15 @@
+[project]
+name = "upskill"
+version = "0.1.0"
+description = "Turn skills and tools into a running agent"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/requirements.txt"]}
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -2,8 +2,9 @@
 name: news-qa
 description: Answer questions about current events and news. Use when the user asks about headlines, breaking news, tech news, world events, or what's happening today.
 tools:
-  - news__fetch_feed_entries
-  - news__fetch_article_content
+  - fetch_feed_entries
+  - fetch_article_content
+  - current_time
 ---
 
 # News & Current Events
@@ -55,3 +56,4 @@ Answer questions about current events by fetching news from RSS feeds.
 - Summarize 3-5 headlines for "what's happening" questions
 - Go deeper on a single story if the user asks about a specific topic
 - If a feed fails, try an alternative source in the same category
+- Use `current_time` to provide context for article timestamps (e.g., "As of 2pm EST today...")

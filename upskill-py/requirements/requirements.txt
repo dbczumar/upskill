@@ -1,0 +1,16 @@
+# Core dependencies for upskill-py runtime
+
+# LLM interface (multi-provider)
+litellm>=1.81,<2
+
+# Config and schema validation
+pydantic>=2.12,<3
+
+# MCP client for tool servers
+mcp>=1.25,<2
+
+# Config parsing
+pyyaml>=6.0,<7
+
+# Docstring parsing for tool descriptions
+docstring-parser>=0.16,<1
