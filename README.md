@@ -186,7 +186,7 @@ headers:
 Place Python tools in `tools/local/python/*.py`:
 
 ```python
-from upskill.runtime.tools import tool
+from upskill import tool
 
 @tool
 def my_tool(param: str) -> str:
@@ -200,13 +200,101 @@ def my_tool(param: str) -> str:
 
 ---
 
-## Running an Agent
+## Running an Agent (Python)
 
-*Coming soon — Upskill runtimes are under development.*
+Install the Python runtime:
 
 ```bash
-# Future usage
-upskill run ./my-agent
+pip install upskill
+```
+
+### Basic Usage
+
+```python
+from upskill import ChatAgent
+
+# Load agent from a directory
+agent = ChatAgent("./my-agent")
+
+# Run a conversation
+response = agent.run([
+    {"role": "user", "content": "What's the weather in NYC?"}
+])
+print(response)
+```
+
+### Async
+
+```python
+import asyncio
+from upskill import ChatAgent
+
+agent = ChatAgent("./my-agent")
+
+async def main():
+    response = await agent.arun([
+        {"role": "user", "content": "What's 25 * 13?"}
+    ])
+    print(response)
+
+asyncio.run(main())
+```
+
+### Streaming
+
+```python
+from upskill import ChatAgent
+
+agent = ChatAgent("./my-agent")
+
+# Sync streaming
+for token in agent.stream([
+    {"role": "user", "content": "Tell me about the latest tech news"}
+]):
+    print(token, end="", flush=True)
+```
+
+### Async Streaming
+
+```python
+import asyncio
+from upskill import ChatAgent
+
+agent = ChatAgent("./my-agent")
+
+async def main():
+    async for token in agent.astream([
+        {"role": "user", "content": "What's 100 divided by 8?"}
+    ]):
+        print(token, end="", flush=True)
+
+asyncio.run(main())
+```
+
+### Structured Output
+
+Use `Agent` for typed input/output with Pydantic models:
+
+```python
+from pydantic import BaseModel
+from upskill import Agent
+
+class Question(BaseModel):
+    query: str
+    context: str | None = None
+
+class Answer(BaseModel):
+    response: str
+    confidence: float
+
+agent = Agent[Question, Answer](
+    input_schema=Question,
+    output_schema=Answer,
+    path="./my-agent",
+)
+
+result = agent.run(Question(query="What is machine learning?"))
+print(result.response, result.confidence)
 ```
 
 ---
@@ -214,8 +302,9 @@ upskill run ./my-agent
 ## Example
 
 See [`examples/sidekick_chatbot`](examples/sidekick_chatbot) for a complete example agent with:
-- Three skills (sports, weather, math)
-- Three MCP tools (remote and local)
+- Three skills (news, weather, math)
+- MCP tools (remote and local)
+- Local Python tools
 - Agent identity via AGENTS.md
 
 ## Resources
