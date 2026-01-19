@@ -132,15 +132,16 @@ function buildAISDKTools(
   // Always include load_skill if there are skills
   if (skillManager.size > 0) {
     const loadSkillSchema = skillManager.getLoadSkillToolSchema();
+    const toolDescriptions = toolManager.getToolDescriptions();
     tools["load_skill"] = aiTool({
-      description: loadSkillSchema.function.description || "Load a skill",
+      description: loadSkillSchema.function.description || "Load one or more skills",
       parameters: z.object({
-        name: z.string().describe("The name of the skill to load"),
+        names: z.array(z.string()).describe("The names of the skills to load"),
       }),
-      execute: async ({ name }) => {
-        if (DEBUG) console.log(`[DEBUG] Loading skill: ${name}`);
-        const result = skillManager.loadSkill(name);
-        if (DEBUG) console.log(`[DEBUG] Skill loaded: ${name}`);
+      execute: async ({ names }) => {
+        if (DEBUG) console.log(`[DEBUG] Loading skills: ${names.join(", ")}`);
+        const result = skillManager.loadSkills(names, toolDescriptions);
+        if (DEBUG) console.log(`[DEBUG] Skills loaded: ${names.join(", ")}`);
         return result.content;
       },
     });

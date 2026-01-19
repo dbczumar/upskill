@@ -241,6 +241,17 @@ export class ToolManager {
   }
 
   /**
+   * Get a map of tool names to descriptions.
+   */
+  getToolDescriptions(): Map<string, string> {
+    const descriptions = new Map<string, string>();
+    for (const info of this.toolInfos) {
+      descriptions.set(info.name, info.description);
+    }
+    return descriptions;
+  }
+
+  /**
    * Call a tool by name with retry logic.
    */
   async callTool(name: string, args: Record<string, unknown>): Promise<string> {

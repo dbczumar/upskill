@@ -48,44 +48,78 @@ export class SkillManager {
    * Load a skill's full content.
    */
   loadSkill(name: string): SkillLoadResult {
-    const skill = this.skills.get(name);
-    if (!skill) {
-      const available = Array.from(this.skills.keys()).sort().join(", ");
+    return this.loadSkills([name]);
+  }
+
+  /**
+   * Load multiple skills at once and return combined content with tools grouped by skill.
+   */
+  loadSkills(names: string[], toolDescriptions?: Map<string, string>): SkillLoadResult {
+    const errors: string[] = [];
+    const allTools: string[] = [];
+    const contentParts: string[] = [];
+
+    for (const name of names) {
+      const skill = this.skills.get(name);
+      if (!skill) {
+        const available = Array.from(this.skills.keys()).sort().join(", ");
+        errors.push(`Error: Skill '${name}' not found. Available skills: ${available}`);
+        continue;
+      }
+
+      this.loadedSkills.add(name);
+
+      let content = `# Skill: ${skill.name}\n\n${skill.content}`;
+
+      // Add tools section with descriptions grouped by skill
+      if (skill.tools.length > 0) {
+        content += `\n\n## Tools for ${skill.name}\n`;
+        for (const toolName of skill.tools) {
+          const desc = toolDescriptions?.get(toolName) || "";
+          content += `\n- **${toolName}**${desc ? `: ${desc}` : ""}`;
+          allTools.push(toolName);
+        }
+      }
+
+      // Add reference info
+      if (skill.references.size > 0) {
+        const refNames = Array.from(skill.references.keys()).sort();
+        content += `\n\n## Available References\n\nThis skill has additional reference documents. Use \`load_reference(skill_name, reference_name)\` to load them:\n`;
+        for (const refName of refNames) {
+          content += `\n- \`${refName}\``;
+        }
+      }
+
+      // Add script info
+      if (skill.scripts.size > 0) {
+        const scriptNames = Array.from(skill.scripts.keys()).sort();
+        content += `\n\n## Available Scripts\n\nThis skill has executable scripts. Use \`load_script(skill_name, script_name)\` to load them:\n`;
+        for (const scriptName of scriptNames) {
+          const scriptPath = skill.scripts.get(scriptName)!;
+          const ext = path.extname(scriptPath);
+          content += `\n- \`${scriptName}\` (${ext})`;
+        }
+      }
+
+      contentParts.push(content);
+    }
+
+    if (errors.length > 0 && contentParts.length === 0) {
       return {
-        content: `Error: Skill '${name}' not found. Available skills: ${available}`,
+        content: errors.join("\n"),
         tools: [],
         success: false,
       };
     }
 
-    this.loadedSkills.add(name);
-
-    let content = `# Skill: ${skill.name}\n\n${skill.content}`;
-
-    // Add reference info
-    if (skill.references.size > 0) {
-      const refNames = Array.from(skill.references.keys()).sort();
-      content += `\n\n## Available References\n\nThis skill has additional reference documents. Use \`load_reference(skill_name, reference_name)\` to load them:\n`;
-      for (const refName of refNames) {
-        content += `\n- \`${refName}\``;
-      }
-    }
-
-    // Add script info
-    if (skill.scripts.size > 0) {
-      const scriptNames = Array.from(skill.scripts.keys()).sort();
-      content += `\n\n## Available Scripts\n\nThis skill has executable scripts. Use \`load_script(skill_name, script_name)\` to load them:\n`;
-      for (const scriptName of scriptNames) {
-        const scriptPath = skill.scripts.get(scriptName)!;
-        const ext = path.extname(scriptPath);
-        content += `\n- \`${scriptName}\` (${ext})`;
-      }
-    }
+    const finalContent = errors.length > 0
+      ? [...errors, "", ...contentParts].join("\n")
+      : contentParts.join("\n\n---\n\n");
 
     return {
-      content,
-      tools: skill.tools,
-      success: true,
+      content: finalContent,
+      tools: allTools,
+      success: contentParts.length > 0,
     };
   }
 
@@ -241,18 +275,22 @@ export class SkillManager {
       function: {
         name: "load_skill",
         description:
-          "Load a skill's full instructions. Use this when you need " +
-          "detailed guidance for handling a specific type of request.",
+          "Load one or more skills' full instructions. Use this when you need " +
+          "detailed guidance for handling a specific type of request. " +
+          "You can load multiple skills at once by passing an array of names.",
         parameters: {
           type: "object",
           properties: {
-            name: {
-              type: "string",
-              description: "The name of the skill to load",
-              enum: skillNames.length > 0 ? skillNames : undefined,
+            names: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: skillNames.length > 0 ? skillNames : undefined,
+              },
+              description: "The names of the skills to load",
             },
           },
-          required: ["name"],
+          required: ["names"],
         },
       },
     };
