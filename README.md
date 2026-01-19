@@ -181,9 +181,18 @@ headers:
   Authorization: ${API_KEY}
 ```
 
-### Local Python Tools
+### Local Tools
 
-Place Python tools in `tools/local/python/*.py`:
+Place code-based tools in `tools/local/<language>/`:
+
+```
+tools/local/
+├── python/*.py
+├── typescript/*.ts
+└── ...
+```
+
+**Example (Python):**
 
 ```python
 from upskill import tool
@@ -197,6 +206,8 @@ def my_tool(param: str) -> str:
     """
     return result
 ```
+
+Tool implementation varies by runtime. See your runtime's documentation for supported languages and decorators.
 
 ---
 
