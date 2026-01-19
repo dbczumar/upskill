@@ -4,16 +4,18 @@ Agentic Loop — Tool calling loop built on LiteLLM.
 - Handle tool calls → execute → return results
 - Use structured outputs internally for clean chat responses
 - Handle context window exceeded errors with pruning
+- Support streaming responses
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import litellm
-from litellm import completion, token_counter
+from litellm import acompletion, completion, token_counter
 
 from upskill.environment_variables import (
     UPSKILL_CONTEXT_PRUNE_THRESHOLD,
@@ -164,6 +166,182 @@ async def run_agentic_loop(
 
     # If we hit max turns, return the last message content or empty string
     return ""
+
+
+async def run_agentic_loop_stream(
+    messages: list[dict[str, Any]],
+    system_prompt: str,
+    llm_config: dict[str, Any],
+    skill_manager: SkillManager,
+    tool_manager: ToolManager,
+) -> AsyncIterator[str]:
+    """
+    Run the agentic loop with streaming, yielding tokens as they arrive.
+
+    Args:
+        messages: The conversation history (user/assistant messages).
+        system_prompt: The system prompt including AGENTS.md and skill summary.
+        llm_config: LiteLLM configuration (model, temperature, etc.).
+        skill_manager: The skill manager for progressive disclosure.
+        tool_manager: The tool manager for MCP and local tools.
+
+    Yields:
+        Text tokens as they are generated.
+    """
+    # Build the full message list with system prompt
+    full_messages = [{"role": "system", "content": system_prompt}] + messages
+
+    # Get all tool schemas upfront (tools are pre-initialized)
+    all_tool_schemas = tool_manager.get_tool_schemas()
+
+    def get_available_tools() -> list[dict]:
+        """Get tools based on loaded skills (progressive disclosure)."""
+        tools = []
+
+        # Always include load_skill if there are skills
+        if skill_manager.skills:
+            tools.append(skill_manager.get_load_skill_tool_schema())
+
+        # Add MCP tools required by loaded skills
+        if skill_manager.loaded_skills:
+            required_tools = skill_manager.get_required_tools()
+            if required_tools:
+                for schema in all_tool_schemas:
+                    if schema["function"]["name"] in required_tools:
+                        tools.append(schema)
+            else:
+                tools.extend(all_tool_schemas)
+
+            ref_schema = skill_manager.get_load_reference_tool_schema()
+            if ref_schema:
+                tools.append(ref_schema)
+
+            script_schema = skill_manager.get_load_script_tool_schema()
+            if script_schema:
+                tools.append(script_schema)
+
+        return tools
+
+    # Build LiteLLM kwargs from config
+    llm_kwargs = dict(llm_config)
+    llm_kwargs["num_retries"] = UPSKILL_LLM_MAX_RETRIES.get()
+
+    max_iterations = UPSKILL_MAX_AGENT_ITERATIONS.get()
+    iteration = 0
+
+    while iteration < max_iterations:
+        iteration += 1
+
+        # Check and prune context if needed
+        full_messages = _prune_context_if_needed(full_messages, llm_kwargs["model"])
+
+        # Get currently available tools (progressive disclosure)
+        tools = get_available_tools()
+
+        # Call the LLM with streaming
+        try:
+            response = await acompletion(
+                messages=full_messages,
+                tools=tools if tools else None,
+                timeout=UPSKILL_LLM_TIMEOUT_SECONDS.get(),
+                stream=True,
+                **llm_kwargs,
+            )
+        except litellm.ContextWindowExceededError:
+            full_messages = _prune_context_aggressive(full_messages)
+            continue
+
+        # Accumulate the response
+        content_buffer = ""
+        tool_calls_buffer: dict[int, dict] = {}  # index -> {id, name, arguments}
+
+        async for chunk in response:
+            delta = chunk.choices[0].delta
+
+            # Handle content tokens
+            if delta.content:
+                content_buffer += delta.content
+                yield delta.content
+
+            # Handle tool calls (accumulated across chunks)
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls_buffer:
+                        tool_calls_buffer[idx] = {
+                            "id": tc.id or "",
+                            "name": tc.function.name if tc.function and tc.function.name else "",
+                            "arguments": "",
+                        }
+                    if tc.id:
+                        tool_calls_buffer[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_calls_buffer[idx]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_calls_buffer[idx]["arguments"] += tc.function.arguments
+
+        # Check if we have a final response (no tool calls)
+        if not tool_calls_buffer:
+            return
+
+        # Build tool calls list for the assistant message
+        tool_calls_list = [
+            {
+                "id": tc["id"],
+                "type": "function",
+                "function": {
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                },
+            }
+            for tc in tool_calls_buffer.values()
+        ]
+
+        # Add assistant message with tool calls to history
+        full_messages.append({
+            "role": "assistant",
+            "content": content_buffer or None,
+            "tool_calls": tool_calls_list,
+        })
+
+        # Execute each tool call
+        for tc in tool_calls_buffer.values():
+            tool_name = tc["name"]
+            try:
+                arguments = json.loads(tc["arguments"])
+            except json.JSONDecodeError:
+                arguments = {}
+
+            # Handle skill-related tools specially
+            if tool_name == "load_skill":
+                load_result = skill_manager.load_skill(arguments.get("name", ""))
+                result = load_result.content
+            elif tool_name == "load_reference":
+                ref_result = skill_manager.load_reference(
+                    arguments.get("skill_name", ""),
+                    arguments.get("reference_name", ""),
+                )
+                result = ref_result.content
+            elif tool_name == "load_script":
+                script_result = skill_manager.load_script(
+                    arguments.get("skill_name", ""),
+                    arguments.get("script_name", ""),
+                )
+                if script_result.success:
+                    result = f"```{script_result.language}\n{script_result.content}\n```"
+                else:
+                    result = script_result.content
+            else:
+                result = await tool_manager.call_tool(tool_name, arguments)
+                logger.debug("Tool '%s' returned: %s", tool_name, result[:200] if len(result) > 200 else result)
+
+            # Add tool result to history
+            full_messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            })
 
 
 def _prune_context_if_needed(

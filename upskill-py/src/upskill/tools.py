@@ -4,6 +4,7 @@ Tool Manager — Unified tool interface for MCP and local tools.
 - Connect to MCP servers (stdio and HTTP transports)
 - Load local Python tools (@tool decorator)
 - Expose all tools to the agentic loop
+- Provide config access for local tools via get_config()
 """
 
 from __future__ import annotations
@@ -21,6 +22,46 @@ from pathlib import Path
 from typing import Any, Callable, get_type_hints
 
 logger = logging.getLogger(__name__)
+
+# Module-level config storage for local tools to access
+_current_config: dict[str, Any] = {}
+
+
+def get_config(name: str, default: Any = None) -> Any:
+    """
+    Get a config value by dot-separated name.
+
+    Use this in local tools to access values from config.yaml.
+
+    Example:
+        from upskill import get_config
+
+        @tool
+        def my_tool():
+            token_path = get_config("gmail.token_path")
+            api_key = get_config("some.nested.value", default="fallback")
+
+    Args:
+        name: Dot-separated config key (e.g., "gmail.token_path")
+        default: Value to return if name not found
+
+    Returns:
+        The config value, or default if not found.
+    """
+    parts = name.split(".")
+    current = _current_config
+    for part in parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return default
+    return current
+
+
+def _set_config(config: dict[str, Any]) -> None:
+    """Set the module-level config (called by ToolManager)."""
+    global _current_config
+    _current_config = config
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -126,6 +167,9 @@ class ToolManager:
             return
 
         logger.debug("Initializing ToolManager with %d MCP servers", len(self.mcp_configs))
+
+        # Set module-level config for local tools to access via get_config()
+        _set_config(self.config)
 
         # Connect to MCP servers sequentially (anyio cancel scopes require same task)
         for config in self.mcp_configs:

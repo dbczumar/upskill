@@ -18,7 +18,7 @@ _log_level = getattr(logging, UPSKILL_LOG_LEVEL.get().upper(), logging.INFO)
 _logger.setLevel(_log_level)
 
 from upskill.agent import Agent, ChatAgent
-from upskill.tools import tool
+from upskill.tools import get_config, tool
 
-__all__ = ["Agent", "ChatAgent", "tool"]
+__all__ = ["Agent", "ChatAgent", "get_config", "tool"]
 __version__ = "0.1.0"
