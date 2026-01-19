@@ -6,7 +6,6 @@ import { generateText, streamText, tool as aiTool, jsonSchema, type CoreMessage,
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
-import { encodingForModel, type TiktokenModel } from "js-tiktoken";
 import type { LLMConfig, Message, ToolSchema } from "./types.js";
 import { SkillManager } from "./skills.js";
 import { ToolManager } from "./tools.js";
@@ -14,88 +13,37 @@ import { ToolManager } from "./tools.js";
 // Environment variable configuration
 const MAX_AGENT_ITERATIONS = parseInt(process.env.UPSKILL_MAX_AGENT_ITERATIONS || "50");
 const DEBUG = process.env.UPSKILL_DEBUG === "true";
-const CONTEXT_PRUNE_THRESHOLD = parseFloat(process.env.UPSKILL_CONTEXT_PRUNE_THRESHOLD || "0.8");
-
-// Model context window sizes (max input tokens)
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  "gpt-4o": 128000,
-  "gpt-4o-mini": 128000,
-  "gpt-4-turbo": 128000,
-  "gpt-4": 8192,
-  "gpt-3.5-turbo": 16385,
-  "claude-3-5-sonnet-20241022": 200000,
-  "claude-3-5-haiku-20241022": 200000,
-  "claude-3-opus-20240229": 200000,
-  "claude-3-sonnet-20240229": 200000,
-  "claude-3-haiku-20240307": 200000,
-};
-
-// Map model names to tiktoken encoding models
-const TIKTOKEN_MODEL_MAP: Record<string, TiktokenModel> = {
-  "gpt-4o": "gpt-4o",
-  "gpt-4o-mini": "gpt-4o",
-  "gpt-4-turbo": "gpt-4-turbo",
-  "gpt-4": "gpt-4",
-  "gpt-3.5-turbo": "gpt-3.5-turbo",
-  // Claude models use cl100k_base (similar to GPT-4)
-  "claude-3-5-sonnet-20241022": "gpt-4",
-  "claude-3-5-haiku-20241022": "gpt-4",
-  "claude-3-opus-20240229": "gpt-4",
-  "claude-3-sonnet-20240229": "gpt-4",
-  "claude-3-haiku-20240307": "gpt-4",
-};
+// Rough character limit before proactive pruning (conservative estimate: 100k tokens * 4 chars)
+const CONTEXT_CHAR_LIMIT = parseInt(process.env.UPSKILL_CONTEXT_CHAR_LIMIT || "400000");
 
 /**
- * Count tokens in a message array using tiktoken.
+ * Estimate total character count in messages (rough proxy for context size).
  */
-function countTokens(messages: CoreMessage[], modelName: string): number {
-  try {
-    const tiktokenModel = TIKTOKEN_MODEL_MAP[modelName] || "gpt-4";
-    const encoding = encodingForModel(tiktokenModel);
-
-    let totalTokens = 0;
-    for (const msg of messages) {
-      // Each message has overhead tokens
-      totalTokens += 4; // <im_start>, role, \n, <im_end>
-
-      if (typeof msg.content === "string") {
-        totalTokens += encoding.encode(msg.content).length;
-      } else if (Array.isArray(msg.content)) {
-        for (const part of msg.content) {
-          if (part.type === "text") {
-            totalTokens += encoding.encode(part.text).length;
-          } else if (part.type === "tool-call") {
-            totalTokens += encoding.encode(part.toolName).length;
-            totalTokens += encoding.encode(JSON.stringify(part.args)).length;
-          } else if (part.type === "tool-result") {
-            totalTokens += encoding.encode(String(part.result)).length;
-          }
+function estimateContextSize(messages: CoreMessage[]): number {
+  let total = 0;
+  for (const msg of messages) {
+    if (typeof msg.content === "string") {
+      total += msg.content.length;
+    } else if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === "text") {
+          total += part.text.length;
+        } else if (part.type === "tool-call") {
+          total += part.toolName.length + JSON.stringify(part.args).length;
+        } else if (part.type === "tool-result") {
+          total += String(part.result).length;
         }
       }
     }
-
-    return totalTokens;
-  } catch (e) {
-    if (DEBUG) console.log(`[DEBUG] Token counting failed: ${e}`);
-    return 0;
   }
+  return total;
 }
 
 /**
- * Get the context window size for a model.
+ * Prune context by removing middle messages.
+ * Keeps first user message and last 10 messages.
  */
-function getContextWindow(modelName: string): number {
-  return MODEL_CONTEXT_WINDOWS[modelName] || 128000;
-}
-
-/**
- * Aggressively prune context by removing middle messages.
- *
- * Keeps:
- * - First user message (the task)
- * - Last 10 messages
- */
-function pruneContextAggressive(messages: CoreMessage[]): CoreMessage[] {
+function pruneContext(messages: CoreMessage[]): CoreMessage[] {
   if (messages.length <= 12) {
     return messages;
   }
@@ -129,29 +77,28 @@ function pruneContextAggressive(messages: CoreMessage[]): CoreMessage[] {
 }
 
 /**
- * Check token count and prune if approaching context limit.
- *
- * Strategy: Keep first user message and last N messages.
- * Drop middle messages, prioritizing tool call/result messages (most verbose).
+ * Check if context is too large and prune if needed.
+ * Uses simple character count heuristic.
  */
-function pruneContextIfNeeded(messages: CoreMessage[], modelName: string): CoreMessage[] {
-  const tokenCount = countTokens(messages, modelName);
-  if (tokenCount === 0) {
-    // Token counting failed, don't prune
-    return messages;
-  }
+function pruneContextIfNeeded(messages: CoreMessage[]): CoreMessage[] {
+  const charCount = estimateContextSize(messages);
 
-  const maxTokens = getContextWindow(modelName);
-  const threshold = Math.floor(maxTokens * CONTEXT_PRUNE_THRESHOLD);
+  if (DEBUG) console.log(`[DEBUG] Context size: ${charCount} chars (limit: ${CONTEXT_CHAR_LIMIT})`);
 
-  if (DEBUG) console.log(`[DEBUG] Token count: ${tokenCount}/${maxTokens} (threshold: ${threshold})`);
-
-  if (tokenCount < threshold) {
+  if (charCount < CONTEXT_CHAR_LIMIT) {
     return messages;
   }
 
   if (DEBUG) console.log(`[DEBUG] Context pruning triggered`);
-  return pruneContextAggressive(messages);
+  return pruneContext(messages);
+}
+
+/**
+ * Check if an error is a context overflow error.
+ */
+function isContextOverflowError(error: unknown): boolean {
+  const msg = String(error).toLowerCase();
+  return msg.includes("context") || msg.includes("token") || msg.includes("too long") || msg.includes("maximum");
 }
 
 /**
@@ -389,29 +336,37 @@ export async function runAgenticLoop(
   toolManager: ToolManager
 ): Promise<string> {
   const { model, provider } = getModel(llmConfig.model);
-  const modelName = llmConfig.model.includes("/")
-    ? llmConfig.model.split("/").slice(1).join("/")
-    : llmConfig.model;
   const allToolSchemas = toolManager.getToolSchemas();
 
   // Convert messages to AI SDK format
   let coreMessages: CoreMessage[] = messages.map(convertMessage);
 
   for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration++) {
-    // Prune context if approaching limit
-    coreMessages = pruneContextIfNeeded(coreMessages, modelName);
+    // Proactive pruning based on character count heuristic
+    coreMessages = pruneContextIfNeeded(coreMessages);
 
     const tools = buildAISDKTools(skillManager, toolManager, allToolSchemas, provider);
 
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      messages: coreMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      temperature: llmConfig.temperature,
-      maxTokens: llmConfig.max_tokens,
-      maxSteps: 1, // We handle the loop ourselves
-    });
+    let result;
+    try {
+      result = await generateText({
+        model,
+        system: systemPrompt,
+        messages: coreMessages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        temperature: llmConfig.temperature,
+        maxTokens: llmConfig.max_tokens,
+        maxSteps: 1, // We handle the loop ourselves
+      });
+    } catch (error) {
+      // Reactive pruning on context overflow errors
+      if (isContextOverflowError(error)) {
+        if (DEBUG) console.log(`[DEBUG] Context overflow detected, pruning and retrying`);
+        coreMessages = pruneContext(coreMessages);
+        continue;
+      }
+      throw error;
+    }
 
     // Check if we have tool calls
     if (result.toolCalls && result.toolCalls.length > 0) {
@@ -462,17 +417,14 @@ export async function* runAgenticLoopStream(
   toolManager: ToolManager
 ): AsyncGenerator<string, void, unknown> {
   const { model, provider } = getModel(llmConfig.model);
-  const modelName = llmConfig.model.includes("/")
-    ? llmConfig.model.split("/").slice(1).join("/")
-    : llmConfig.model;
   const allToolSchemas = toolManager.getToolSchemas();
 
   // Convert messages to AI SDK format
   let coreMessages: CoreMessage[] = messages.map(convertMessage);
 
   for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration++) {
-    // Prune context if approaching limit
-    coreMessages = pruneContextIfNeeded(coreMessages, modelName);
+    // Proactive pruning based on character count heuristic
+    coreMessages = pruneContextIfNeeded(coreMessages);
 
     if (DEBUG) console.log(`[DEBUG] Stream iteration ${iteration + 1}`);
     if (DEBUG) console.log(`[DEBUG] Messages count:`, coreMessages.length);

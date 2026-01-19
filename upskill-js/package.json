@@ -26,7 +26,6 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "ai": "^4.0.0",
     "gray-matter": "^4.0.3",
-    "js-tiktoken": "^1.0.21",
     "js-yaml": "^4.1.0",
     "zod": "^3.0.0"
   },
