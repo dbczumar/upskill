@@ -1,0 +1,7 @@
+name: news
+description: Fetch current events from RSS feeds (no API key needed)
+transport: stdio
+command: npx
+args:
+  - -y
+  - rss-reader-mcp

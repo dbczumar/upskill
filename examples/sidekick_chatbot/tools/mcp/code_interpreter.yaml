@@ -1,7 +1,8 @@
 name: code_interpreter
-description: Execute Python code in a secure sandboxed environment (Pyodide/WebAssembly)
+description: Execute Python code in isolated environment
 transport: stdio
 command: uvx
 args:
-  - mcp-run-python@latest
-  - stdio
+  - mcp-python-interpreter
+  - --dir
+  - /tmp/upskill-code

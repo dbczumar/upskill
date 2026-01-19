@@ -1,6 +1,0 @@
-name: sports
-description: Fetch sports scores, schedules, standings, and player stats for NBA, NFL, MLB, NHL, and more
-transport: http
-url: https://mcp.balldontlie.io/mcp
-headers:
-  Authorization: ${BALLDONTLIE_API_KEY}

@@ -1,53 +1,54 @@
 # Sidekick Chatbot
 
-A demonstration chatbot that answers questions about sports, weather, and performs calculations.
+A demonstration chatbot that answers questions about news, weather, and performs calculations.
 
 ## Features
 
-- **Sports Q&A**: Scores, standings, schedules, and player statistics
+- **News & Current Events**: Headlines from BBC, NPR, TechCrunch, Hacker News, and more via RSS
 - **Weather Q&A**: Current conditions and forecasts for any location
-- **Math & Computation**: Run Python code for calculations and data analysis
+- **Math & Calculations**: Arithmetic, percentages, statistics, unit conversions
 
 ## Setup
 
-1. Set required environment variables:
+1. Install the upskill-py runtime:
    ```bash
-   # Get your API key at https://www.balldontlie.io/
-   export BALLDONTLIE_API_KEY="your-api-key"
+   cd upskill-py && pip install -e .
    ```
 
-   Note: Weather uses [Open-Meteo](https://open-meteo.com/) via [open-mcp.org](https://open-mcp.org/) — no API key required.
-
-2. Install `uv` (for the code interpreter):
+2. Set environment variables:
    ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+   export OPENAI_API_KEY="your-openai-key"
    ```
 
-3. Run with an Upskill runtime:
-   ```bash
-   upskill run examples/sidekick_chatbot
+3. Run from the sidekick_chatbot directory:
+   ```python
+   from upskill import ChatAgent
+
+   agent = ChatAgent()
+   response = agent.run(messages=[{"role": "user", "content": "What's in the news today?"}])
+   print(response)
    ```
 
 ## Directory Structure
 
 ```
 sidekick_chatbot/
-├── config.yaml          # Runtime configuration
+├── config.yaml          # LLM and runtime configuration
 ├── AGENTS.md            # Agent identity and behavior
 ├── skills/
-│   ├── sports-qa/       # Sports question answering
+│   ├── news-qa/         # News and current events
 │   ├── weather-qa/      # Weather question answering
-│   └── math-calculator/ # Math via code interpreter
+│   └── math-calculator/ # Math calculations
 └── tools/mcp/
-    ├── weather.yaml         # Open-Meteo (streamable HTTP)
-    ├── sports.yaml          # BALLDONTLIE (HTTP)
-    └── code_interpreter.yaml # Pydantic mcp-run-python (stdio)
+    ├── news.yaml             # RSS feed reader (no API key needed)
+    ├── weather.yaml          # Weather via NOAA/Open-Meteo (no API key needed)
+    └── code_interpreter.yaml # Python code execution
 ```
 
 ## MCP Tools
 
-| Tool | Source | Transport |
-|------|--------|-----------|
-| weather | [open-mcp.org](https://open-mcp.org/) | streamable HTTP |
-| sports | [BALLDONTLIE](https://balldontlie.io/) | HTTP |
-| code_interpreter | [mcp-run-python](https://github.com/pydantic/mcp-run-python) | stdio (local) |
+| Tool | Source |
+|------|--------|
+| news | [rss-reader-mcp](https://www.npmjs.com/package/rss-reader-mcp) |
+| weather | [@dangahagan/weather-mcp](https://www.npmjs.com/package/@dangahagan/weather-mcp) |
+| code_interpreter | [mcp-python-interpreter](https://pypi.org/project/mcp-python-interpreter/) |

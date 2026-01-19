@@ -1,6 +1,8 @@
 ---
 name: math-calculator
 description: Perform calculations, data analysis, and numerical problem-solving. Use when the user asks for math, percentages, statistics, unit conversions, or any computation.
+tools:
+  - code_interpreter__run_python_code
 ---
 
 # Math & Computation
@@ -47,8 +49,17 @@ fahrenheit = (celsius * 9/5) + 32
 
 ## Response Guidelines
 
-- Show the code you ran
-- Present the final answer clearly
-- Explain the calculation if it's non-trivial
-- Round appropriately based on context
+- **Always show the actual result** - never say "the number is too large" or give up
+- For very large/small numbers, use scientific notation (e.g., `f"{result:.6e}"`)
+- Present the final answer clearly and completely
+- Round appropriately based on context (use the precision the user asked for)
 - Include units when applicable
+
+## Perseverance
+
+- **Do NOT return early** - always run the code and get the actual result before responding
+- If a calculation seems complex, break it into steps
+- If a result is very large or very small, still compute and display it
+- Python can handle arbitrary precision - use it
+- Never be vague about results - always give the actual number
+- Never say "I'll update you in a moment" - just do the calculation and respond with the answer
