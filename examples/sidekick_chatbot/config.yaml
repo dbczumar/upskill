@@ -1,0 +1,11 @@
+llm:
+  # LiteLLM model format: provider/model-name
+  model: openai/gpt-5.2
+  max_tokens: 4096
+  reasoning_effort: medium
+  # api_key:  # Optional: override via OPENAI_API_KEY env var
+
+config:
+  # API key for BALLDONTLIE sports data (required for sports features)
+  # Get your key at https://www.balldontlie.io/
+  # balldontlie_api_key:

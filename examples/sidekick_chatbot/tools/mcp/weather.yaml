@@ -1,0 +1,4 @@
+name: weather
+description: Fetch current weather and forecasts for any location using Open-Meteo
+transport: streamable_http
+url: https://mcp.open-mcp.org/api/server/open-weather@latest/mcp

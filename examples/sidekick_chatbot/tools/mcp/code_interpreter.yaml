@@ -1,0 +1,7 @@
+name: code_interpreter
+description: Execute Python code in a secure sandboxed environment (Pyodide/WebAssembly)
+transport: stdio
+command: uvx
+args:
+  - mcp-run-python@latest
+  - stdio
