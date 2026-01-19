@@ -33,12 +33,15 @@ export class SkillManager {
       "## Available Skills",
       "",
       "You have access to the following skills. " +
-        "Use `load_skill(name)` to load a skill's full instructions when needed.",
+        "Use `load_skill({ names: [...] })` to load skill(s) and their tools when needed.",
       "",
     ];
 
     for (const skill of this.skills.values()) {
       lines.push(`- **${skill.name}**: ${skill.description}`);
+      if (skill.tools.length > 0) {
+        lines.push(`  - Tools: ${skill.tools.join(", ")}`);
+      }
     }
 
     return lines.join("\n");
