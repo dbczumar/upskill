@@ -3,7 +3,13 @@
  */
 
 import { z, ZodType, ZodObject, ZodRawShape } from "zod";
-import type { AgentConfig, Message } from "./types.js";
+import type {
+  AgentConfig,
+  Message,
+  AgentResponse,
+  StreamEvent,
+  ThinkingConfig,
+} from "./types.js";
 import { loadAgent } from "./loader.js";
 import { SkillManager } from "./skills.js";
 import { ToolManager } from "./tools.js";
@@ -113,8 +119,15 @@ export class ChatAgent {
 
   /**
    * Run the agent with the given message history.
+   *
+   * @param messages - List of messages in chat format
+   * @param thinking - Optional thinking config for extended reasoning
+   * @returns AgentResponse with content and optional reasoning
    */
-  async run(messages: Array<{ role: string; content: string }>): Promise<string> {
+  async run(
+    messages: Array<{ role: string; content: string }>,
+    thinking?: ThinkingConfig
+  ): Promise<AgentResponse> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -130,23 +143,32 @@ export class ChatAgent {
       systemPrompt,
       this.config.llm,
       this.skillManager,
-      this.toolManager
+      this.toolManager,
+      thinking
     );
   }
 
   /**
    * Alias for run() - async version (same behavior, for API consistency with Python).
    */
-  async arun(messages: Array<{ role: string; content: string }>): Promise<string> {
-    return this.run(messages);
+  async arun(
+    messages: Array<{ role: string; content: string }>,
+    thinking?: ThinkingConfig
+  ): Promise<AgentResponse> {
+    return this.run(messages, thinking);
   }
 
   /**
-   * Run the agent with streaming, yielding tokens as they arrive.
+   * Run the agent with streaming, yielding events as they arrive.
+   *
+   * @param messages - List of messages in chat format
+   * @param thinking - Optional thinking config for extended reasoning
+   * @yields StreamEvent objects with type (reasoning, content) and content
    */
   async *stream(
-    messages: Array<{ role: string; content: string }>
-  ): AsyncGenerator<string, void, unknown> {
+    messages: Array<{ role: string; content: string }>,
+    thinking?: ThinkingConfig
+  ): AsyncGenerator<StreamEvent, void, unknown> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -162,7 +184,8 @@ export class ChatAgent {
       systemPrompt,
       this.config.llm,
       this.skillManager,
-      this.toolManager
+      this.toolManager,
+      thinking
     );
   }
 
@@ -170,9 +193,10 @@ export class ChatAgent {
    * Alias for stream() - async streaming (same behavior, for API consistency with Python).
    */
   async *astream(
-    messages: Array<{ role: string; content: string }>
-  ): AsyncGenerator<string, void, unknown> {
-    yield* this.stream(messages);
+    messages: Array<{ role: string; content: string }>,
+    thinking?: ThinkingConfig
+  ): AsyncGenerator<StreamEvent, void, unknown> {
+    yield* this.stream(messages, thinking);
   }
 
   /**
@@ -350,8 +374,15 @@ export class Agent<
 
   /**
    * Run the agent with typed input and get typed output.
+   *
+   * @param input - Input matching the input schema
+   * @param thinking - Optional thinking config for extended reasoning
+   * @returns Typed output matching the output schema
    */
-  async run(input: z.infer<ZodObject<TInput>>): Promise<z.infer<ZodObject<TOutput>>> {
+  async run(
+    input: z.infer<ZodObject<TInput>>,
+    thinking?: ThinkingConfig
+  ): Promise<z.infer<ZodObject<TOutput>>> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -363,28 +394,34 @@ export class Agent<
     const inputStr = JSON.stringify(validatedInput);
     const messages: Message[] = [{ role: "user", content: inputStr }];
 
-    const result = await runAgenticLoop(
+    const response = await runAgenticLoop(
       messages,
       systemPrompt,
       this.config.llm,
       this.skillManager,
-      this.toolManager
+      this.toolManager,
+      thinking
     );
 
     // Parse and validate output
     try {
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(response.content);
       return this.outputSchema.parse(parsed);
     } catch (e) {
-      throw new Error(`Failed to parse agent output as valid schema: ${e}\nRaw output: ${result}`);
+      throw new Error(
+        `Failed to parse agent output as valid schema: ${e}\nRaw output: ${response.content}`
+      );
     }
   }
 
   /**
    * Alias for run() - async version.
    */
-  async arun(input: z.infer<ZodObject<TInput>>): Promise<z.infer<ZodObject<TOutput>>> {
-    return this.run(input);
+  async arun(
+    input: z.infer<ZodObject<TInput>>,
+    thinking?: ThinkingConfig
+  ): Promise<z.infer<ZodObject<TOutput>>> {
+    return this.run(input, thinking);
   }
 
   /**
@@ -399,5 +436,12 @@ export class Agent<
 // Re-export for convenience
 export { SkillManager } from "./skills.js";
 export { ToolManager, tool, simpleTool } from "./tools.js";
-export type { AgentConfig, Message, ToolSchema } from "./types.js";
+export type {
+  AgentConfig,
+  Message,
+  ToolSchema,
+  AgentResponse,
+  StreamEvent,
+  ThinkingConfig,
+} from "./types.js";
 export { z } from "zod";

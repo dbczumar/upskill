@@ -28,25 +28,25 @@ async function main() {
   const newsResponse = await agent.run([
     { role: "user", content: "What's happening in tech news today?" },
   ]);
-  console.log(newsResponse);
+  console.log(newsResponse.content);
 
   console.log("\n=== Weather Example ===");
   const weatherResponse = await agent.run([
     { role: "user", content: "What's the weather in NYC?" },
   ]);
-  console.log(weatherResponse);
+  console.log(weatherResponse.content);
 
   console.log("\n=== Calculation Example ===");
   const calcResponse = await agent.run([
     { role: "user", content: "Calculate 15% of 847 to 3 decimal places" },
   ]);
-  console.log(calcResponse);
+  console.log(calcResponse.content);
 
   console.log("\n=== Compound Interest Example ===");
   const interestResponse = await agent.run([
     { role: "user", content: "What's the compound interest on $5000 at 6% for 10 years?" },
   ]);
-  console.log(interestResponse);
+  console.log(interestResponse.content);
 
   // Clean up
   await agent.close();

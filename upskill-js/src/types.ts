@@ -88,3 +88,27 @@ export interface ScriptLoadResult {
   language: string;
   success: boolean;
 }
+
+/**
+ * A typed streaming event from the agentic loop.
+ */
+export interface StreamEvent {
+  type: "reasoning" | "content";
+  content: string;
+}
+
+/**
+ * Response from the agent with optional reasoning.
+ */
+export interface AgentResponse {
+  content: string;
+  reasoning: string | null;
+}
+
+/**
+ * Configuration for extended thinking/reasoning.
+ */
+export interface ThinkingConfig {
+  type: "enabled";
+  budget_tokens: number;
+}

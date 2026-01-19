@@ -6,7 +6,7 @@ import { generateText, streamText, tool as aiTool, jsonSchema, type CoreMessage,
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
-import type { LLMConfig, Message, ToolSchema } from "./types.js";
+import type { LLMConfig, Message, ToolSchema, StreamEvent, AgentResponse, ThinkingConfig } from "./types.js";
 import { SkillManager } from "./skills.js";
 import { ToolManager } from "./tools.js";
 
@@ -333,13 +333,17 @@ export async function runAgenticLoop(
   systemPrompt: string,
   llmConfig: LLMConfig,
   skillManager: SkillManager,
-  toolManager: ToolManager
-): Promise<string> {
+  toolManager: ToolManager,
+  thinking?: ThinkingConfig
+): Promise<AgentResponse> {
   const { model, provider } = getModel(llmConfig.model);
   const allToolSchemas = toolManager.getToolSchemas();
 
   // Convert messages to AI SDK format
   let coreMessages: CoreMessage[] = messages.map(convertMessage);
+
+  // Track accumulated reasoning across iterations
+  const accumulatedReasoning: string[] = [];
 
   for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration++) {
     // Proactive pruning based on character count heuristic
@@ -357,6 +361,8 @@ export async function runAgenticLoop(
         temperature: llmConfig.temperature,
         maxTokens: llmConfig.max_tokens,
         maxSteps: 1, // We handle the loop ourselves
+        // Add thinking config if provided (Anthropic provider option)
+        ...(thinking && provider === "anthropic" ? { experimental_thinking: { enabled: true, budgetTokens: thinking.budget_tokens } } : {}),
       });
     } catch (error) {
       // Reactive pruning on context overflow errors
@@ -366,6 +372,13 @@ export async function runAgenticLoop(
         continue;
       }
       throw error;
+    }
+
+    // Capture reasoning if present (Vercel AI SDK returns it in result.reasoning)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reasoning = (result as any).reasoning;
+    if (reasoning) {
+      accumulatedReasoning.push(reasoning);
     }
 
     // Check if we have tool calls
@@ -398,24 +411,31 @@ export async function runAgenticLoop(
       });
     } else {
       // No tool calls - return final response
-      return result.text || "";
+      return {
+        content: result.text || "",
+        reasoning: accumulatedReasoning.length > 0 ? accumulatedReasoning.join("\n\n") : null,
+      };
     }
   }
 
   // Max iterations reached
-  return "";
+  return {
+    content: "",
+    reasoning: accumulatedReasoning.length > 0 ? accumulatedReasoning.join("\n\n") : null,
+  };
 }
 
 /**
- * Run the agentic loop with streaming, yielding tokens as they arrive.
+ * Run the agentic loop with streaming, yielding events as they arrive.
  */
 export async function* runAgenticLoopStream(
   messages: Message[],
   systemPrompt: string,
   llmConfig: LLMConfig,
   skillManager: SkillManager,
-  toolManager: ToolManager
-): AsyncGenerator<string, void, unknown> {
+  toolManager: ToolManager,
+  thinking?: ThinkingConfig
+): AsyncGenerator<StreamEvent, void, unknown> {
   const { model, provider } = getModel(llmConfig.model);
   const allToolSchemas = toolManager.getToolSchemas();
 
@@ -448,6 +468,8 @@ export async function* runAgenticLoopStream(
       temperature: llmConfig.temperature,
       maxTokens: llmConfig.max_tokens,
       maxSteps: 1, // We handle the loop ourselves
+      // Add thinking config if provided (Anthropic provider option)
+      ...(thinking && provider === "anthropic" ? { experimental_thinking: { enabled: true, budgetTokens: thinking.budget_tokens } } : {}),
     });
 
     // Consume the full stream to get both text and tool calls
@@ -460,8 +482,12 @@ export async function* runAgenticLoopStream(
 
     for await (const part of streamResult.fullStream) {
       if (part.type === "text-delta") {
-        yield part.textDelta;
+        yield { type: "content", content: part.textDelta };
         text += part.textDelta;
+      } else if (part.type === "reasoning") {
+        // Vercel AI SDK emits reasoning events for extended thinking
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        yield { type: "reasoning", content: (part as any).textDelta || "" };
       } else if (part.type === "tool-call") {
         if (DEBUG) console.log(`[DEBUG] Tool call:`, part.toolName);
         toolCallsAccum.push(part);

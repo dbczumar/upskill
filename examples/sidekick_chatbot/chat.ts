@@ -43,9 +43,11 @@ async function main() {
 
     // Stream the response
     let fullResponse = "";
-    for await (const chunk of agent.stream(messages)) {
-      process.stdout.write(chunk);
-      fullResponse += chunk;
+    for await (const event of agent.stream(messages)) {
+      if (event.type === "content") {
+        process.stdout.write(event.content);
+        fullResponse += event.content;
+      }
     }
 
     console.log("\n");
