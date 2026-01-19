@@ -96,6 +96,16 @@ export class ChatAgent {
     const skillSummary = this.skillManager.getSkillSummary();
     if (skillSummary) {
       parts.push(skillSummary);
+      parts.push(
+        "## How to Use Skills\n\n" +
+        "When handling a request:\n" +
+        "1. **Plan**: Think about what information you need to gather and what actions you need to take\n" +
+        "2. **Review**: Look at available skills and their tools - refine your plan based on what's possible\n" +
+        "3. **Check loaded skills**: See if already-loaded skills can handle part or all of the request\n" +
+        "4. **Load if needed**: Load additional skill(s) if your loaded skills aren't sufficient\n" +
+        "5. **Execute**: Use the tools to gather information and perform actions\n" +
+        "6. **Iterate**: If results aren't sufficient, revisit your plan and consider other skills/tools"
+      );
     }
 
     return parts.join("\n\n");
@@ -315,6 +325,16 @@ export class Agent<
     const skillSummary = this.skillManager.getSkillSummary();
     if (skillSummary) {
       parts.push(skillSummary);
+      parts.push(
+        "## How to Use Skills\n\n" +
+        "When handling a request:\n" +
+        "1. **Plan**: Think about what information you need to gather and what actions you need to take\n" +
+        "2. **Review**: Look at available skills and their tools - refine your plan based on what's possible\n" +
+        "3. **Check loaded skills**: See if already-loaded skills can handle part or all of the request\n" +
+        "4. **Load if needed**: Load additional skill(s) if your loaded skills aren't sufficient\n" +
+        "5. **Execute**: Use the tools to gather information and perform actions\n" +
+        "6. **Iterate**: If results aren't sufficient, revisit your plan and consider other skills/tools"
+      );
     }
 
     // Add output format instructions
