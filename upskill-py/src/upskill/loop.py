@@ -135,7 +135,7 @@ async def run_agentic_loop(
 
             # Handle skill-related tools specially
             if tool_name == "load_skill":
-                load_result = skill_manager.load_skill(arguments.get("name", ""))
+                load_result = skill_manager.load_skills(arguments.get("names", []))
                 result = load_result.content
             elif tool_name == "load_reference":
                 ref_result = skill_manager.load_reference(
@@ -315,7 +315,7 @@ async def run_agentic_loop_stream(
 
             # Handle skill-related tools specially
             if tool_name == "load_skill":
-                load_result = skill_manager.load_skill(arguments.get("name", ""))
+                load_result = skill_manager.load_skills(arguments.get("names", []))
                 result = load_result.content
             elif tool_name == "load_reference":
                 ref_result = skill_manager.load_reference(
@@ -499,7 +499,7 @@ async def run_agentic_loop_structured(
                 arguments = {}
 
             if tool_name == "load_skill":
-                load_result = skill_manager.load_skill(arguments.get("name", ""))
+                load_result = skill_manager.load_skills(arguments.get("names", []))
                 result = load_result.content
             elif tool_name == "load_reference":
                 ref_result = skill_manager.load_reference(

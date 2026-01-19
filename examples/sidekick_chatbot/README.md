@@ -10,24 +10,56 @@ A demonstration chatbot that answers questions about news, weather, and performs
 
 ## Setup
 
+### TypeScript
+
+1. Build the upskill-js runtime:
+   ```bash
+   cd upskill-js && npm install && npm run build
+   ```
+
+2. Run the chatbot:
+   ```bash
+   cd examples/sidekick_chatbot
+   OPENAI_API_KEY="sk-..." npx tsx run.ts      # Run example queries
+   OPENAI_API_KEY="sk-..." npx tsx chat.ts     # Interactive chat
+   ```
+
+### Python
+
 1. Install the upskill-py runtime:
    ```bash
    cd upskill-py && pip install -e .
    ```
 
-2. Set environment variables:
+2. Run from the sidekick_chatbot directory:
    ```bash
-   export OPENAI_API_KEY="your-openai-key"
+   cd examples/sidekick_chatbot
+   OPENAI_API_KEY="sk-..." python run.py
    ```
 
-3. Run from the sidekick_chatbot directory:
-   ```python
-   from upskill import ChatAgent
+### Programmatic Usage
 
-   agent = ChatAgent()
-   response = agent.run(messages=[{"role": "user", "content": "What's in the news today?"}])
-   print(response)
-   ```
+**TypeScript:**
+```typescript
+import { ChatAgent } from "upskill";
+
+const agent = new ChatAgent("./path/to/sidekick_chatbot");
+await agent.initialize();
+const response = await agent.run([
+  { role: "user", content: "What's in the news today?" }
+]);
+console.log(response);
+await agent.close();
+```
+
+**Python:**
+```python
+from upskill import ChatAgent
+
+agent = ChatAgent()
+response = agent.run(messages=[{"role": "user", "content": "What's in the news today?"}])
+print(response)
+```
 
 ## Directory Structure
 
@@ -35,6 +67,9 @@ A demonstration chatbot that answers questions about news, weather, and performs
 sidekick_chatbot/
 ├── config.yaml          # LLM and runtime configuration
 ├── AGENTS.md            # Agent identity and behavior
+├── run.ts               # TypeScript example runner
+├── chat.ts              # TypeScript interactive chat
+├── run.py               # Python example runner
 ├── skills/
 │   ├── news-qa/         # News and current events
 │   ├── weather-qa/      # Weather question answering

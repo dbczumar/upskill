@@ -75,7 +75,6 @@ class _BaseAgent:
     def _init_base(self, path: str | Path | None) -> None:
         """Initialize base agent state. Called by subclass __init__."""
         self._config = load_agent(path)
-        self._skill_manager = SkillManager.from_skills(self._config.skills)
 
         # Persistent event loop and tool manager for connection reuse
         self._loop = None
@@ -83,8 +82,12 @@ class _BaseAgent:
         self._tool_manager = None
         self._closed = False
 
-        # Initialize MCP connections at startup
+        # Initialize MCP connections at startup (must happen before SkillManager)
         self._initialize_tools()
+
+        # Create skill manager with tool descriptions for better skill selection
+        tool_descriptions = self._tool_manager.get_tool_descriptions()
+        self._skill_manager = SkillManager.from_skills(self._config.skills, tool_descriptions)
 
         # Validate that skills reference existing tools
         self._validate_skill_tools()

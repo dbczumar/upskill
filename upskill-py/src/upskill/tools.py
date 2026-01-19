@@ -338,6 +338,10 @@ class ToolManager:
         """Get list of available tool names."""
         return [info.name for info in self._tool_infos]
 
+    def get_tool_descriptions(self) -> dict[str, str]:
+        """Get a mapping of tool names to their descriptions."""
+        return {info.name: info.description for info in self._tool_infos}
+
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         """
         Call a tool by name with the given arguments.

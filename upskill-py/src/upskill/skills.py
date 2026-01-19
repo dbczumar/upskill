@@ -54,20 +54,22 @@ class SkillManager:
 
     skills: dict[str, SkillMetadata]
     loaded_skills: set[str]  # Names of skills whose full content has been loaded
+    tool_descriptions: dict[str, str]  # tool_name -> description
 
     @classmethod
-    def from_skills(cls, skills: list[SkillMetadata]) -> SkillManager:
+    def from_skills(cls, skills: list[SkillMetadata], tool_descriptions: dict[str, str] = None) -> SkillManager:
         """Create a SkillManager from a list of skill metadata."""
         return cls(
             skills={s.name: s for s in skills},
             loaded_skills=set(),
+            tool_descriptions=tool_descriptions or {},
         )
 
     def get_skill_summary(self) -> str:
         """
         Generate a summary of available skills for the system prompt.
 
-        Returns a markdown-formatted list of skills with their descriptions.
+        Returns a markdown-formatted list of skills with their descriptions and tools.
         """
         if not self.skills:
             return ""
@@ -80,7 +82,19 @@ class SkillManager:
         lines.append("")
 
         for skill in self.skills.values():
-            lines.append(f"- **{skill.name}**: {skill.description}")
+            lines.append(f"### {skill.name}")
+            lines.append(f"**Description**: {skill.description}")
+            if skill.tools:
+                lines.append("**Tools**:")
+                for tool_name in skill.tools:
+                    tool_desc = self.tool_descriptions.get(tool_name, "")
+                    if tool_desc:
+                        # Get just the first sentence of the description
+                        first_sentence = tool_desc.split('.')[0].strip()
+                        lines.append(f"  - `{tool_name}`: {first_sentence}")
+                    else:
+                        lines.append(f"  - `{tool_name}`")
+            lines.append("")
 
         return "\n".join(lines)
 
@@ -128,6 +142,61 @@ class SkillManager:
             content=content,
             tools=skill.tools,
             success=True,
+        )
+
+    def load_skills(self, names: list[str]) -> SkillLoadResult:
+        """
+        Load multiple skills at once and return their combined content and tools.
+
+        Args:
+            names: List of skill names to load.
+
+        Returns:
+            SkillLoadResult with combined content, all required tools, and success flag.
+            Success is True only if ALL requested skills loaded successfully.
+        """
+        if not names:
+            return SkillLoadResult(
+                content="Error: No skill names provided.",
+                tools=[],
+                success=False,
+            )
+
+        all_content = []
+        all_tools = []
+        loaded_names = []
+        failed_names = []
+
+        for name in names:
+            result = self.load_skill(name)
+            if result.success:
+                all_content.append(result.content)
+                all_tools.extend(result.tools)
+                loaded_names.append(name)
+            else:
+                failed_names.append(name)
+
+        if not all_content:
+            return SkillLoadResult(
+                content=f"Error: Failed to load skills: {', '.join(failed_names)}",
+                tools=[],
+                success=False,
+            )
+
+        # Combine content with summary header
+        summary = f"Loaded {len(loaded_names)} skill(s): {', '.join(loaded_names)}"
+        if failed_names:
+            summary += f"\nFailed to load: {', '.join(failed_names)}"
+
+        combined_content = summary + "\n\n---\n\n" + "\n\n---\n\n".join(all_content)
+
+        # Deduplicate tools while preserving order
+        unique_tools = list(dict.fromkeys(all_tools))
+
+        return SkillLoadResult(
+            content=combined_content,
+            tools=unique_tools,
+            success=len(failed_names) == 0,  # Only True if ALL skills loaded
         )
 
     def get_required_tools(self) -> set[str]:
@@ -295,20 +364,24 @@ class SkillManager:
             "function": {
                 "name": "load_skill",
                 "description": (
-                    "Load a skill's full instructions. Use this when you need "
+                    "Load one or more skills' full instructions. Use this when you need "
                     "detailed guidance for handling a specific type of request. "
-                    "The skill content will be added to the conversation."
+                    "The skill content will be added to the conversation. "
+                    "You can load multiple skills at once by providing an array of names."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "The name of the skill to load",
-                            "enum": skill_names if skill_names else None,
+                        "names": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": skill_names if skill_names else None,
+                            },
+                            "description": "The name(s) of the skill(s) to load. Can be a single skill or multiple.",
                         },
                     },
-                    "required": ["name"],
+                    "required": ["names"],
                 },
             },
         }
