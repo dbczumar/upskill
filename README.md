@@ -1,6 +1,6 @@
 # Upskill
 
-**Turn skills and tools into a running agent.**
+**Turn skills, MCP tools, and AGENTS.md into a running agent (coding optional!)**
 
 Upskill is a minimal, runtime-driven system for composing [Agent Skills](https://agentskills.io), [MCP](https://modelcontextprotocol.io) tools, code-based tools, and agent instructions into a working agent — without writing any runtime code.
 
