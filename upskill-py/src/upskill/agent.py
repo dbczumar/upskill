@@ -32,7 +32,13 @@ warnings.filterwarnings(
 )
 
 from upskill.loader import AgentConfig, load_agent
-from upskill.loop import run_agentic_loop, run_agentic_loop_stream, run_agentic_loop_structured
+from upskill.loop import (
+    AgentResponse,
+    StreamEvent,
+    run_agentic_loop,
+    run_agentic_loop_stream,
+    run_agentic_loop_structured,
+)
 from upskill.skills import SkillManager
 from upskill.tools import ToolManager
 
@@ -217,31 +223,45 @@ class ChatAgent(_BaseAgent):
         """
         self._init_base(path)
 
-    def run(self, messages: list[dict[str, Any]]) -> str:
+    def run(
+        self,
+        messages: list[dict[str, Any]],
+        thinking: dict[str, Any] | None = None,
+    ) -> str | AgentResponse:
         """
         Run the agent with the given message history.
 
         Args:
             messages: List of messages in OpenAI format:
                 [{"role": "user", "content": "..."}, ...]
+            thinking: Optional thinking config for extended reasoning.
+                Example: {"type": "enabled", "budget_tokens": 10000}
 
         Returns:
-            The assistant's response as a string.
+            If thinking is None: The assistant's response as a string.
+            If thinking is set: AgentResponse with content and reasoning.
         """
         loop = self._ensure_loop()
-        future = asyncio.run_coroutine_threadsafe(self.arun(messages), loop)
+        future = asyncio.run_coroutine_threadsafe(self.arun(messages, thinking=thinking), loop)
         return future.result()
 
-    async def arun(self, messages: list[dict[str, Any]]) -> str:
+    async def arun(
+        self,
+        messages: list[dict[str, Any]],
+        thinking: dict[str, Any] | None = None,
+    ) -> str | AgentResponse:
         """
         Run the agent asynchronously with the given message history.
 
         Args:
             messages: List of messages in OpenAI format:
                 [{"role": "user", "content": "..."}, ...]
+            thinking: Optional thinking config for extended reasoning.
+                Example: {"type": "enabled", "budget_tokens": 10000}
 
         Returns:
-            The assistant's response as a string.
+            If thinking is None: The assistant's response as a string.
+            If thinking is set: AgentResponse with content and reasoning.
         """
         system_prompt = self._build_system_prompt()
 
@@ -251,26 +271,34 @@ class ChatAgent(_BaseAgent):
             llm_config=self._config.llm,
             skill_manager=self._skill_manager,
             tool_manager=self._tool_manager,
+            thinking=thinking,
         )
 
-    def stream(self, messages: list[dict[str, Any]]) -> Iterator[str]:
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        thinking: dict[str, Any] | None = None,
+    ) -> Iterator[str | StreamEvent]:
         """
         Run the agent with streaming, yielding tokens as they arrive.
 
         Args:
             messages: List of messages in OpenAI format:
                 [{"role": "user", "content": "..."}, ...]
+            thinking: Optional thinking config for extended reasoning.
+                Example: {"type": "enabled", "budget_tokens": 10000}
 
         Yields:
-            Text tokens as they are generated.
+            If thinking is None: Text tokens as strings (backward compatible).
+            If thinking is set: StreamEvent objects with type and content.
         """
         loop = self._ensure_loop()
-        queue: Queue[str | None] = Queue()
+        queue: Queue[str | StreamEvent | None] = Queue()
 
         async def stream_to_queue():
             try:
-                async for token in self.astream(messages):
-                    queue.put(token)
+                async for event in self.astream(messages, thinking=thinking):
+                    queue.put(event)
             finally:
                 queue.put(None)  # Signal completion
 
@@ -278,36 +306,44 @@ class ChatAgent(_BaseAgent):
 
         while True:
             try:
-                token = queue.get(timeout=0.1)
-                if token is None:
+                event = queue.get(timeout=0.1)
+                if event is None:
                     break
-                yield token
+                yield event
             except Empty:
                 # Check if the coroutine has failed
                 if future.done() and future.exception():
                     raise future.exception()
 
-    async def astream(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
+    async def astream(
+        self,
+        messages: list[dict[str, Any]],
+        thinking: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str | StreamEvent]:
         """
         Run the agent asynchronously with streaming, yielding tokens as they arrive.
 
         Args:
             messages: List of messages in OpenAI format:
                 [{"role": "user", "content": "..."}, ...]
+            thinking: Optional thinking config for extended reasoning.
+                Example: {"type": "enabled", "budget_tokens": 10000}
 
         Yields:
-            Text tokens as they are generated.
+            If thinking is None: Text tokens as strings (backward compatible).
+            If thinking is set: StreamEvent objects with type and content.
         """
         system_prompt = self._build_system_prompt()
 
-        async for token in run_agentic_loop_stream(
+        async for event in run_agentic_loop_stream(
             messages=messages,
             system_prompt=system_prompt,
             llm_config=self._config.llm,
             skill_manager=self._skill_manager,
             tool_manager=self._tool_manager,
+            thinking=thinking,
         ):
-            yield token
+            yield event
 
     def __enter__(self) -> ChatAgent:
         return self

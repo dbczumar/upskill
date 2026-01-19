@@ -5,6 +5,7 @@ Agentic Loop — Tool calling loop built on LiteLLM.
 - Use structured outputs internally for clean chat responses
 - Handle context window exceeded errors with pruning
 - Support streaming responses
+- Support extended thinking/reasoning
 """
 
 from __future__ import annotations
@@ -12,10 +13,25 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import litellm
 from litellm import acompletion, completion, token_counter
+
+
+@dataclass
+class StreamEvent:
+    """A typed streaming event from the agentic loop."""
+    type: Literal["reasoning", "content", "tool_call", "tool_result"]
+    content: str
+
+
+@dataclass
+class AgentResponse:
+    """Response from the agent with optional reasoning."""
+    content: str
+    reasoning: str | None = None
 
 from upskill.environment_variables import (
     UPSKILL_CONTEXT_PRUNE_THRESHOLD,
@@ -35,7 +51,8 @@ async def run_agentic_loop(
     llm_config: dict[str, Any],
     skill_manager: SkillManager,
     tool_manager: ToolManager,
-) -> str:
+    thinking: dict[str, Any] | None = None,
+) -> str | AgentResponse:
     """
     Run the agentic loop until a final response is produced.
 
@@ -45,9 +62,12 @@ async def run_agentic_loop(
         llm_config: LiteLLM configuration (model, temperature, etc.).
         skill_manager: The skill manager for progressive disclosure.
         tool_manager: The tool manager for MCP and local tools.
+        thinking: Optional thinking config for extended reasoning.
+            Example: {"type": "enabled", "budget_tokens": 10000}
 
     Returns:
-        The assistant's final text response.
+        If thinking is None: The assistant's final text response (str).
+        If thinking is set: AgentResponse with content and reasoning.
     """
     # Build the full message list with system prompt
     full_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -91,6 +111,13 @@ async def run_agentic_loop(
     llm_kwargs = dict(llm_config)
     llm_kwargs["num_retries"] = UPSKILL_LLM_MAX_RETRIES.get()
 
+    # Add thinking config if provided
+    if thinking:
+        llm_kwargs["thinking"] = thinking
+
+    # Track accumulated reasoning across iterations
+    accumulated_reasoning: list[str] = []
+
     max_iterations = UPSKILL_MAX_AGENT_ITERATIONS.get()
     iteration = 0
     while iteration < max_iterations:
@@ -118,9 +145,19 @@ async def run_agentic_loop(
         choice = response.choices[0]
         message = choice.message
 
+        # Capture reasoning if present
+        if hasattr(message, "reasoning_content") and message.reasoning_content:
+            accumulated_reasoning.append(message.reasoning_content)
+
         # Check if we have a final response (no tool calls)
         if not message.tool_calls:
-            return message.content or ""
+            content = message.content or ""
+            if thinking:
+                return AgentResponse(
+                    content=content,
+                    reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
+                )
+            return content
 
         # Add assistant message with tool calls to history
         full_messages.append(message.model_dump())
@@ -165,6 +202,11 @@ async def run_agentic_loop(
             })
 
     # If we hit max turns, return the last message content or empty string
+    if thinking:
+        return AgentResponse(
+            content="",
+            reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
+        )
     return ""
 
 
@@ -174,7 +216,8 @@ async def run_agentic_loop_stream(
     llm_config: dict[str, Any],
     skill_manager: SkillManager,
     tool_manager: ToolManager,
-) -> AsyncIterator[str]:
+    thinking: dict[str, Any] | None = None,
+) -> AsyncIterator[str | StreamEvent]:
     """
     Run the agentic loop with streaming, yielding tokens as they arrive.
 
@@ -184,9 +227,12 @@ async def run_agentic_loop_stream(
         llm_config: LiteLLM configuration (model, temperature, etc.).
         skill_manager: The skill manager for progressive disclosure.
         tool_manager: The tool manager for MCP and local tools.
+        thinking: Optional thinking config for extended reasoning.
+            Example: {"type": "enabled", "budget_tokens": 10000}
 
     Yields:
-        Text tokens as they are generated.
+        If thinking is None: Text tokens as strings (backward compatible).
+        If thinking is set: StreamEvent objects with type and content.
     """
     # Build the full message list with system prompt
     full_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -226,6 +272,10 @@ async def run_agentic_loop_stream(
     llm_kwargs = dict(llm_config)
     llm_kwargs["num_retries"] = UPSKILL_LLM_MAX_RETRIES.get()
 
+    # Add thinking config if provided
+    if thinking:
+        llm_kwargs["thinking"] = thinking
+
     max_iterations = UPSKILL_MAX_AGENT_ITERATIONS.get()
     iteration = 0
 
@@ -253,15 +303,25 @@ async def run_agentic_loop_stream(
 
         # Accumulate the response
         content_buffer = ""
+        reasoning_buffer = ""
         tool_calls_buffer: dict[int, dict] = {}  # index -> {id, name, arguments}
 
         async for chunk in response:
             delta = chunk.choices[0].delta
 
+            # Handle reasoning/thinking tokens (when extended thinking is enabled)
+            if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                reasoning_buffer += delta.reasoning_content
+                if thinking:
+                    yield StreamEvent(type="reasoning", content=delta.reasoning_content)
+
             # Handle content tokens
             if delta.content:
                 content_buffer += delta.content
-                yield delta.content
+                if thinking:
+                    yield StreamEvent(type="content", content=delta.content)
+                else:
+                    yield delta.content
 
             # Handle tool calls (accumulated across chunks)
             if delta.tool_calls:
