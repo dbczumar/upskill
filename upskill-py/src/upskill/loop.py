@@ -52,7 +52,7 @@ async def run_agentic_loop(
     skill_manager: SkillManager,
     tool_manager: ToolManager,
     thinking: dict[str, Any] | None = None,
-) -> str | AgentResponse:
+) -> AgentResponse:
     """
     Run the agentic loop until a final response is produced.
 
@@ -66,8 +66,7 @@ async def run_agentic_loop(
             Example: {"type": "enabled", "budget_tokens": 10000}
 
     Returns:
-        If thinking is None: The assistant's final text response (str).
-        If thinking is set: AgentResponse with content and reasoning.
+        AgentResponse with content and optional reasoning.
     """
     # Build the full message list with system prompt
     full_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -151,13 +150,10 @@ async def run_agentic_loop(
 
         # Check if we have a final response (no tool calls)
         if not message.tool_calls:
-            content = message.content or ""
-            if thinking:
-                return AgentResponse(
-                    content=content,
-                    reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
-                )
-            return content
+            return AgentResponse(
+                content=message.content or "",
+                reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
+            )
 
         # Add assistant message with tool calls to history
         full_messages.append(message.model_dump())
@@ -201,13 +197,11 @@ async def run_agentic_loop(
                 "content": result,
             })
 
-    # If we hit max turns, return the last message content or empty string
-    if thinking:
-        return AgentResponse(
-            content="",
-            reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
-        )
-    return ""
+    # If we hit max turns, return empty response
+    return AgentResponse(
+        content="",
+        reasoning="\n\n".join(accumulated_reasoning) if accumulated_reasoning else None,
+    )
 
 
 async def run_agentic_loop_stream(
@@ -217,9 +211,9 @@ async def run_agentic_loop_stream(
     skill_manager: SkillManager,
     tool_manager: ToolManager,
     thinking: dict[str, Any] | None = None,
-) -> AsyncIterator[str | StreamEvent]:
+) -> AsyncIterator[StreamEvent]:
     """
-    Run the agentic loop with streaming, yielding tokens as they arrive.
+    Run the agentic loop with streaming, yielding events as they arrive.
 
     Args:
         messages: The conversation history (user/assistant messages).
@@ -231,8 +225,7 @@ async def run_agentic_loop_stream(
             Example: {"type": "enabled", "budget_tokens": 10000}
 
     Yields:
-        If thinking is None: Text tokens as strings (backward compatible).
-        If thinking is set: StreamEvent objects with type and content.
+        StreamEvent objects with type (reasoning, content) and content.
     """
     # Build the full message list with system prompt
     full_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -312,16 +305,12 @@ async def run_agentic_loop_stream(
             # Handle reasoning/thinking tokens (when extended thinking is enabled)
             if hasattr(delta, "reasoning_content") and delta.reasoning_content:
                 reasoning_buffer += delta.reasoning_content
-                if thinking:
-                    yield StreamEvent(type="reasoning", content=delta.reasoning_content)
+                yield StreamEvent(type="reasoning", content=delta.reasoning_content)
 
             # Handle content tokens
             if delta.content:
                 content_buffer += delta.content
-                if thinking:
-                    yield StreamEvent(type="content", content=delta.content)
-                else:
-                    yield delta.content
+                yield StreamEvent(type="content", content=delta.content)
 
             # Handle tool calls (accumulated across chunks)
             if delta.tool_calls:

@@ -227,7 +227,7 @@ class ChatAgent(_BaseAgent):
         self,
         messages: list[dict[str, Any]],
         thinking: dict[str, Any] | None = None,
-    ) -> str | AgentResponse:
+    ) -> AgentResponse:
         """
         Run the agent with the given message history.
 
@@ -238,8 +238,7 @@ class ChatAgent(_BaseAgent):
                 Example: {"type": "enabled", "budget_tokens": 10000}
 
         Returns:
-            If thinking is None: The assistant's response as a string.
-            If thinking is set: AgentResponse with content and reasoning.
+            AgentResponse with content and optional reasoning.
         """
         loop = self._ensure_loop()
         future = asyncio.run_coroutine_threadsafe(self.arun(messages, thinking=thinking), loop)
@@ -249,7 +248,7 @@ class ChatAgent(_BaseAgent):
         self,
         messages: list[dict[str, Any]],
         thinking: dict[str, Any] | None = None,
-    ) -> str | AgentResponse:
+    ) -> AgentResponse:
         """
         Run the agent asynchronously with the given message history.
 
@@ -260,8 +259,7 @@ class ChatAgent(_BaseAgent):
                 Example: {"type": "enabled", "budget_tokens": 10000}
 
         Returns:
-            If thinking is None: The assistant's response as a string.
-            If thinking is set: AgentResponse with content and reasoning.
+            AgentResponse with content and optional reasoning.
         """
         system_prompt = self._build_system_prompt()
 
@@ -278,9 +276,9 @@ class ChatAgent(_BaseAgent):
         self,
         messages: list[dict[str, Any]],
         thinking: dict[str, Any] | None = None,
-    ) -> Iterator[str | StreamEvent]:
+    ) -> Iterator[StreamEvent]:
         """
-        Run the agent with streaming, yielding tokens as they arrive.
+        Run the agent with streaming, yielding events as they arrive.
 
         Args:
             messages: List of messages in OpenAI format:
@@ -289,11 +287,10 @@ class ChatAgent(_BaseAgent):
                 Example: {"type": "enabled", "budget_tokens": 10000}
 
         Yields:
-            If thinking is None: Text tokens as strings (backward compatible).
-            If thinking is set: StreamEvent objects with type and content.
+            StreamEvent objects with type (reasoning, content) and content.
         """
         loop = self._ensure_loop()
-        queue: Queue[str | StreamEvent | None] = Queue()
+        queue: Queue[StreamEvent | None] = Queue()
 
         async def stream_to_queue():
             try:
@@ -319,9 +316,9 @@ class ChatAgent(_BaseAgent):
         self,
         messages: list[dict[str, Any]],
         thinking: dict[str, Any] | None = None,
-    ) -> AsyncIterator[str | StreamEvent]:
+    ) -> AsyncIterator[StreamEvent]:
         """
-        Run the agent asynchronously with streaming, yielding tokens as they arrive.
+        Run the agent asynchronously with streaming, yielding events as they arrive.
 
         Args:
             messages: List of messages in OpenAI format:
@@ -330,8 +327,7 @@ class ChatAgent(_BaseAgent):
                 Example: {"type": "enabled", "budget_tokens": 10000}
 
         Yields:
-            If thinking is None: Text tokens as strings (backward compatible).
-            If thinking is set: StreamEvent objects with type and content.
+            StreamEvent objects with type (reasoning, content) and content.
         """
         system_prompt = self._build_system_prompt()
 
