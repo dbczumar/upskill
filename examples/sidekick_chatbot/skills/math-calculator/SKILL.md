@@ -12,9 +12,34 @@ Perform calculations, data analysis, and numerical problem-solving using the cod
 ## Approach
 
 1. Understand the mathematical problem or calculation request
-2. Write Python code to solve it using the code interpreter
-3. Execute the code and verify the result
-4. Present the answer clearly with explanation
+2. **Load `advanced-patterns` reference** if the problem involves anything beyond basic arithmetic (see below)
+3. Write Python code to solve it using the code interpreter
+4. Execute the code and verify the result
+5. Present the answer clearly with explanation
+
+## When to Load Advanced Patterns
+
+Load the `advanced-patterns` reference for:
+- Financial calculations (interest, NPV, amortization, etc.)
+- Statistical analysis (standard deviation, correlation, regression)
+- Scientific calculations (trigonometry, physics formulas)
+- Unit conversions beyond simple temperature/distance
+- Any multi-step or domain-specific calculation
+
+Skip loading it only for straightforward arithmetic like:
+- Basic addition, subtraction, multiplication, division
+- Simple percentages (e.g., "what is 15% of 100?")
+- Counting or summing a small list of numbers
+
+## When to Use Scripts
+
+**Always check for available scripts before writing code from scratch.** If a script exists for the calculation type, load it with `load_script` and run it via code_interpreter.
+
+For example, for compound interest calculations:
+1. Load the `compound_interest` script
+2. Run it with the user's values: `python compound_interest.py -p 10000 -r 0.05 -y 10`
+
+Scripts are pre-tested and handle edge cases - prefer them over writing new code.
 
 ## Use the Code Interpreter
 

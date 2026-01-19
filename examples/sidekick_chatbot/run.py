@@ -31,3 +31,9 @@ response = agent.run(
     messages=[{"role": "user", "content": "Calculate 15% of 847 to 3 decimal places"}]
 )
 print(response)
+
+print("\n=== Compound Interest Example ===")
+response = agent.run(
+    messages=[{"role": "user", "content": "What's the compound interest on $5000 at 6% for 10 years?"}]
+)
+print(response)
