@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import litellm
-from litellm import acompletion, completion, token_counter
+from litellm import acompletion, token_counter
 
 
 @dataclass
@@ -130,7 +130,7 @@ async def run_agentic_loop(
 
         # Call the LLM
         try:
-            response = completion(
+            response = await acompletion(
                 messages=full_messages,
                 tools=tools if tools else None,
                 timeout=UPSKILL_LLM_TIMEOUT_SECONDS.get(),
@@ -509,7 +509,7 @@ async def run_agentic_loop_structured(
             # For structured output, we only apply response_format on the final call (no tools)
             # During tool-calling iterations, we don't want to constrain the format
             if tools:
-                response = completion(
+                response = await acompletion(
                     messages=full_messages,
                     tools=tools,
                     timeout=UPSKILL_LLM_TIMEOUT_SECONDS.get(),
@@ -517,7 +517,7 @@ async def run_agentic_loop_structured(
                 )
             else:
                 # Final call with structured output
-                response = completion(
+                response = await acompletion(
                     messages=full_messages,
                     timeout=UPSKILL_LLM_TIMEOUT_SECONDS.get(),
                     **llm_kwargs,

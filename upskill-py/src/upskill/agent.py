@@ -23,14 +23,6 @@ from weakref import WeakSet
 
 from pydantic import BaseModel
 
-# TODO: Fix our async usage of litellm - we're likely not properly awaiting their
-# cleanup. This suppresses the symptom but we should fix the root cause.
-warnings.filterwarnings(
-    "ignore",
-    message="coroutine.*was never awaited",
-    module="litellm.*"
-)
-
 from upskill.loader import AgentConfig, load_agent
 from upskill.loop import (
     AgentResponse,
