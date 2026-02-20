@@ -4,3 +4,9 @@ llm:
   reasoning_effort: medium
   # Set here or via OPENAI_API_KEY env var
   # api_key:
+
+interaction:
+  conversational: true
+  durable: false
+  streaming: true
+  interruptible: false

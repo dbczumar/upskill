@@ -11,5 +11,8 @@ dependencies = {file = ["requirements/requirements.txt"]}
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
+[project.scripts]
+upskill = "upskill.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -14,3 +14,7 @@ pyyaml>=6.0,<7
 
 # Docstring parsing for tool descriptions
 docstring-parser>=0.16,<1
+
+# Server
+fastapi>=0.115,<1
+uvicorn>=0.32,<1

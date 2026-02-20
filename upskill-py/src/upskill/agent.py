@@ -56,6 +56,46 @@ def _cleanup_agents():
 atexit.register(_cleanup_agents)
 
 
+def build_system_prompt(instructions: str, skill_manager: SkillManager) -> str:
+    """
+    Build the full system prompt from agent instructions and skill summary.
+
+    Args:
+        instructions: The agent's instructions (from AGENTS.md).
+        skill_manager: The skill manager for progressive disclosure.
+
+    Returns:
+        The assembled system prompt string.
+    """
+    parts = []
+
+    if instructions:
+        parts.append(instructions)
+
+    skill_summary = skill_manager.get_skill_summary()
+    if skill_summary:
+        parts.append(skill_summary)
+
+    parts.append(
+        "## How to Use Skills\n\n"
+        "When handling a request:\n"
+        "1. **Plan**: Think about what information you need to gather "
+        "and what actions you need to take\n"
+        "2. **Review**: Look at available skills and their tools - "
+        "refine your plan based on what's possible\n"
+        "3. **Check loaded skills**: See if already-loaded skills can "
+        "handle part or all of the request\n"
+        "4. **Load if needed**: Load additional skill(s) if your "
+        "loaded skills aren't sufficient\n"
+        "5. **Execute**: Use the tools to gather information and "
+        "perform actions\n"
+        "6. **Iterate**: If results aren't sufficient, revisit your "
+        "plan and consider other skills/tools"
+    )
+
+    return "\n\n".join(parts)
+
+
 class _BaseAgent:
     """
     Base class with shared functionality for ChatAgent and Agent.
@@ -149,30 +189,9 @@ class _BaseAgent:
 
     def _build_system_prompt(self) -> str:
         """Build the full system prompt from AGENTS.md and skill summary."""
-        parts = []
-
-        # Add AGENTS.md instructions
-        if self._config.instructions:
-            parts.append(self._config.instructions)
-
-        # Add skill summary for progressive disclosure
-        skill_summary = self._skill_manager.get_skill_summary()
-        if skill_summary:
-            parts.append(skill_summary)
-
-        # Add guidance on skill usage
-        parts.append(
-            "## How to Use Skills\n\n"
-            "When handling a request:\n"
-            "1. **Plan**: Think about what information you need to gather and what actions you need to take\n"
-            "2. **Review**: Look at available skills and their tools - refine your plan based on what's possible\n"
-            "3. **Check loaded skills**: See if already-loaded skills can handle part or all of the request\n"
-            "4. **Load if needed**: Load additional skill(s) if your loaded skills aren't sufficient\n"
-            "5. **Execute**: Use the tools to gather information and perform actions\n"
-            "6. **Iterate**: If results aren't sufficient, revisit your plan and consider other skills/tools"
+        return build_system_prompt(
+            self._config.instructions, self._skill_manager
         )
-
-        return "\n\n".join(parts)
 
     def _shutdown(self) -> None:
         """Internal shutdown - stops the event loop (subprocesses die automatically)."""

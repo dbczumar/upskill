@@ -132,6 +132,7 @@ class AgentConfig:
     root: Path
     llm: dict[str, Any]
     config: dict[str, Any]
+    interaction: dict[str, Any]
     instructions: str
     skills: list[SkillMetadata]
     mcp_servers: list[MCPServerConfig]
@@ -155,11 +156,13 @@ def load_agent(path: str | Path | None = None) -> AgentConfig:
     # Load config.yaml
     llm_config: dict[str, Any] = {}
     app_config: dict[str, Any] = {}
+    interaction_config: dict[str, Any] = {}
     config_path = root / "config.yaml"
     if config_path.exists():
         data = yaml.safe_load(config_path.read_text()) or {}
         llm_config = data.get("llm", {})
         app_config = data.get("config", {})
+        interaction_config = data.get("interaction", {})
 
     # Load AGENTS.md
     instructions = ""
@@ -194,6 +197,7 @@ def load_agent(path: str | Path | None = None) -> AgentConfig:
         root=root,
         llm=llm_config,
         config=app_config,
+        interaction=interaction_config,
         instructions=instructions,
         skills=skills,
         mcp_servers=mcp_servers,
